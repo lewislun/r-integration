@@ -1,7 +1,7 @@
 const fs = require("fs");
 const pt = require("path");
-var child_process = require("child_process");
-
+const child_process = require("child_process");
+const REngineNotFoundError = require('./REngineNotFoundError')
 
 /**
  * get the current Operating System name
@@ -73,9 +73,9 @@ execShellCommandAsync = (command) => {
  * the path where the binary is installed
  * 
  * @param {string} path alternative path to use as binaries directory
- * @returns {string} the path where the Rscript binary is installed, 0 otherwise
+ * @returns {string} the path where the Rscript binary is installed
  */
-isRscriptInstalled = (path) => {
+getRscriptPath = (path) => {
 	var installationDir = 0;
 
 	switch (getCurrentOs()) {
@@ -113,8 +113,11 @@ isRscriptInstalled = (path) => {
 
 			break;
 		default:
-			break;
+			throw new Error('Cannot determine OS type')
 	}
+
+	if (!installationDir)
+		throw new REngineNotFoundError(path)
 
 	return installationDir;
 };
@@ -127,22 +130,17 @@ isRscriptInstalled = (path) => {
  * @returns {String[]} an array containing all the results from the command execution output, 0 if there was an error
  */
 executeRCommand = (command, RBinariesLocation) => {
-	let RscriptBinaryPath = isRscriptInstalled(RBinariesLocation);
+	let RscriptBinaryPath = getRscriptPath(RBinariesLocation);
 	let output = 0;
 
-	if (RscriptBinaryPath) {
-		var commandToExecute = `"${RscriptBinaryPath}" -e "${command}"`;
-		var commandResult = executeShellCommand(commandToExecute);
+	var commandToExecute = `"${RscriptBinaryPath}" -e "${command}"`;
+	var commandResult = executeShellCommand(commandToExecute);
 
-		if (commandResult.stdout) {
-			output = commandResult.stdout;
-			output = filterMultiline(output);
-		} else {
-			throw Error(`[R: compile error] ${commandResult.stderr}`);
-		}
-
+	if (commandResult.stdout) {
+		output = commandResult.stdout;
+		output = filterMultiline(output);
 	} else {
-		throw Error("R not found, maybe not installed.\nSee www.r-project.org");
+		throw Error(`[R: compile error] ${commandResult.stderr}`);
 	}
 
 	return output;
@@ -156,22 +154,17 @@ executeRCommand = (command, RBinariesLocation) => {
  * @returns {Promise<String[]>} an array containing all the results from the command execution output, 0 if there was an error
  */
 executeRCommandAsync = async (command, RBinariesLocation) => {
-	let RscriptBinaryPath = isRscriptInstalled(RBinariesLocation)
+	let RscriptBinaryPath = getRscriptPath(RBinariesLocation)
 	let output = 0;
 
-	if (RscriptBinaryPath) {
-		var commandToExecute = `"${RscriptBinaryPath}" -e "${command}"`
-		var commandResult = await execShellCommandAsync(commandToExecute)
+	var commandToExecute = `"${RscriptBinaryPath}" -e "${command}"`
+	var commandResult = await execShellCommandAsync(commandToExecute)
 
-		if (commandResult.stdout) {
-			output = commandResult.stdout;
-			output = filterMultiline(output)
-		} else {
-			throw Error(`[R: compile error] ${commandResult.stderr}`)
-		}
-
+	if (commandResult.stdout) {
+		output = commandResult.stdout;
+		output = filterMultiline(output)
 	} else {
-		throw Error("R not found, maybe not installed.\nSee www.r-project.org")
+		throw Error(`[R: compile error] ${commandResult.stderr}`)
 	}
 
 	return output
@@ -189,28 +182,22 @@ executeRCommandAsync = async (command, RBinariesLocation) => {
  * @returns {String[]} an array containing all the results from the command execution output, 0 if there was an error
  */
 executeRScript = (fileLocation, RBinariesLocation) => {
-
-	let RscriptBinaryPath = isRscriptInstalled(RBinariesLocation);
+	let RscriptBinaryPath = getRscriptPath(RBinariesLocation);
 	let output = 0;
 
 	if (!fs.existsSync(fileLocation)) {
-		//file doesn't exist
+		// file doesn't exist
 		throw Error(`ERROR: the file "${fileLocation}" doesn't exist`);
 	}
 
-	if (RscriptBinaryPath) {
-		var commandToExecute = `"${RscriptBinaryPath}" "${fileLocation}"`;
-		var commandResult = executeShellCommand(commandToExecute);
+	var commandToExecute = `"${RscriptBinaryPath}" "${fileLocation}"`;
+	var commandResult = executeShellCommand(commandToExecute);
 
-		if (commandResult.stdout) {
-			output = commandResult.stdout;
-			output = filterMultiline(output);
-		} else {
-			throw Error(`[R: compile error] ${commandResult.stderr}`);
-		}
-
+	if (commandResult.stdout) {
+		output = commandResult.stdout;
+		output = filterMultiline(output);
 	} else {
-		throw Error("R not found, maybe not installed.\nSee www.r-project.org");
+		throw Error(`[R: compile error] ${commandResult.stderr}`);
 	}
 
 	return output;
