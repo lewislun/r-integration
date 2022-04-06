@@ -1,7 +1,10 @@
+'use strict'
+
 const fs = require("fs")
 const pt = require("path")
-const child_process = require("child_process")
-const REngineNotFoundError = require('./REngineNotFoundError')
+const childProcess = require("child_process")
+const REngineNotFoundError = require('./r-engine-not-found-error')
+const RScriptError = require('./r-script-error')
 
 /**
  * get the current Operating System name
@@ -11,7 +14,7 @@ const REngineNotFoundError = require('./REngineNotFoundError')
  *  - "lin" -> for GNU/Linux based Systems
  *  - "mac" -> for MacOS based Systems
  */
-getCurrentOs = () => {
+const getCurrentOs = () => {
 	var processPlatform = process.platform
 	var currentOs
 
@@ -33,12 +36,12 @@ getCurrentOs = () => {
  * @param {string} command the command to execute
  * @returns {{string, string}} the command execution result
  */
-executeShellCommand = (command) => {
+const executeShellCommand = (command) => {
 	let stdout
 	let stderr
 
 	try {
-		stdout = child_process.execSync(command, {
+		stdout = childProcess.execSync(command, {
 			stdio: "pipe"
 		}).toString()
 	} catch (error) {
@@ -55,13 +58,13 @@ executeShellCommand = (command) => {
  * execute a command in the OS shell asynchronously (used to execute R command)
  * 
  * @param {string} command the command to execute
- * @returns {{string, string}} the command execution result
+ * @returns {Promise<{stderr: Error|string, strout: string}>} the command execution result
  */
-execShellCommandAsync = (command) => {
+const execShellCommandAsync = (command) => {
 	return new Promise(resolve => {
-		child_process.exec(command, (err, stdout, stderr) => {
+		childProcess.exec(command, (err, stdout, stderr) => {
 			resolve({
-				stderr: err || stderr,
+				stderr: err? err.message : stderr,
 				stdout,
 			})
 		})
@@ -75,7 +78,7 @@ execShellCommandAsync = (command) => {
  * @param {string} path alternative path to use as binaries directory
  * @returns {string} the path where the Rscript binary is installed
  */
-getRscriptPath = (path) => {
+const getRscriptPath = (path) => {
 	var installationDir = 0
 
 	switch (getCurrentOs()) {
@@ -129,7 +132,7 @@ getRscriptPath = (path) => {
  * @param {string} RBinariesLocation optional parameter to specify an alternative location for the Rscript binary
  * @returns {String[]} an array containing all the results from the command execution output, 0 if there was an error
  */
-executeRCommand = (command, RBinariesLocation) => {
+const executeRCommand = (command, RBinariesLocation) => {
 	let RscriptBinaryPath = getRscriptPath(RBinariesLocation)
 	let output = 0
 
@@ -140,7 +143,7 @@ executeRCommand = (command, RBinariesLocation) => {
 		output = commandResult.stdout
 		output = filterMultiline(output)
 	} else {
-		throw Error(`[R: compile error] ${commandResult.stderr}`)
+		throw new RScriptError(commandResult.stderr)
 	}
 
 	return output
@@ -153,7 +156,7 @@ executeRCommand = (command, RBinariesLocation) => {
  * @param {string} RBinariesLocation optional parameter to specify an alternative location for the Rscript binary
  * @returns {Promise<String[]>} an array containing all the results from the command execution output, 0 if there was an error
  */
-executeRCommandAsync = async (command, RBinariesLocation) => {
+const executeRCommandAsync = async (command, RBinariesLocation) => {
 	let RscriptBinaryPath = getRscriptPath(RBinariesLocation)
 	let output = 0
 
@@ -164,7 +167,7 @@ executeRCommandAsync = async (command, RBinariesLocation) => {
 		output = commandResult.stdout
 		output = filterMultiline(output)
 	} else {
-		throw Error(`[R: compile error] ${commandResult.stderr}`)
+		throw new RScriptError(commandResult.stderr)
 	}
 
 	return output
@@ -181,7 +184,7 @@ executeRCommandAsync = async (command, RBinariesLocation) => {
  * @param {string} RBinariesLocation optional parameter to specify an alternative location for the Rscript binary
  * @returns {String[]} an array containing all the results from the command execution output, 0 if there was an error
  */
-executeRScript = (fileLocation, RBinariesLocation) => {
+const executeRScript = (fileLocation, RBinariesLocation) => {
 	let RscriptBinaryPath = getRscriptPath(RBinariesLocation)
 	let output = 0
 
@@ -197,7 +200,7 @@ executeRScript = (fileLocation, RBinariesLocation) => {
 		output = commandResult.stdout
 		output = filterMultiline(output)
 	} else {
-		throw Error(`[R: compile error] ${commandResult.stderr}`)
+		throw new RScriptError(commandResult.stderr)
 	}
 
 	return output
@@ -207,13 +210,13 @@ executeRScript = (fileLocation, RBinariesLocation) => {
 /**
  * Formats the parameters so R could read them
  */
-convertParamsArray = (params) => {
+const convertParamsArray = (params) => {
 	var methodSyntax = ``
 
 	if (Array.isArray(params)) {
 		methodSyntax += "c("
 
-		for (let i = 0 i < params.length i++) {
+		for (let i = 0; i < params.length; i++) {
 			methodSyntax += convertParamsArray(params[i])
 		}
 
@@ -240,7 +243,7 @@ convertParamsArray = (params) => {
  * @param {string} RBinariesLocation optional parameter to specify an alternative location for the Rscript binary
  * @returns {string} the execution output of the function, 0 in case of error
  */
-callMethod = (fileLocation, methodName, params, RBinariesLocation) => {
+const callMethod = (fileLocation, methodName, params, RBinariesLocation) => {
 	let output = 0
 
 	if (!methodName || !fileLocation || !params) {
@@ -269,7 +272,7 @@ callMethod = (fileLocation, methodName, params, RBinariesLocation) => {
 	var methodSyntax = methodSyntax.slice(0, -1)
 	methodSyntax += ")"
 
-	output = executeRCommand(`source('${fileLocation}')  print(${methodSyntax})`, RBinariesLocation)
+	output = executeRCommand(`source('${fileLocation}'); print(${methodSyntax})`, RBinariesLocation)
 
 	return output
 }
@@ -283,7 +286,7 @@ callMethod = (fileLocation, methodName, params, RBinariesLocation) => {
  * @param {string} RBinariesLocation optional parameter to specify an alternative location for the Rscript binary
  * @returns {string} the execution output of the function
  */
-callMethodAsync = async (fileLocation, methodName, params, RBinariesLocation) => {
+const callMethodAsync = async (fileLocation, methodName, params, RBinariesLocation) => {
 	let output = 0
 
 	if (!methodName || !fileLocation || !params) {
@@ -312,7 +315,7 @@ callMethodAsync = async (fileLocation, methodName, params, RBinariesLocation) =>
 	var methodSyntax = methodSyntax.slice(0, -1)
 	methodSyntax += ")"
 
-	output = executeRCommandAsync(`source('${fileLocation}')  print(${methodSyntax})`, RBinariesLocation)
+	output = executeRCommandAsync(`source('${fileLocation}'); print(${methodSyntax})`, RBinariesLocation)
 
 	return output
 }
@@ -326,7 +329,7 @@ callMethodAsync = async (fileLocation, methodName, params, RBinariesLocation) =>
  * @param {string} RBinariesLocation optional parameter to specify an alternative location for the Rscript binary
  * @returns {string} the execution output of the function, 0 in case of error
  */
-callStandardMethod = (methodName, params, RBinariesLocation) => {
+const callStandardMethod = (methodName, params, RBinariesLocation) => {
 	let output = 0
 
 	if (!methodName || !params) {
@@ -368,7 +371,7 @@ callStandardMethod = (methodName, params, RBinariesLocation) => {
  * @param {string} commandResult the multiline result of RScript execution
  * @returns {String[]} an array containing all the results 
  */
-filterMultiline = (commandResult) => {
+const filterMultiline = (commandResult) => {
 	let data
 
 	// remove last newline to avoid empty results
@@ -399,7 +402,7 @@ filterMultiline = (commandResult) => {
 		}
 
 		// find undefined or NaN and remove quotes
-		for (let i = 0 i < data.length i++) {
+		for (let i = 0; i < data.length; i++) {
 			if (data[i] == "NA") {
 				data[i] = undefined
 			} else if (data[i] == "NaN") {

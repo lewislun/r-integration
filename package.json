@@ -2,7 +2,7 @@
   "name": "r-integration",
   "version": "2.3.0",
   "description": "Simple portable library used to interact with pre-installed R compiler by running commands or scripts(files)",
-  "main": "src/R.js",
+  "main": "src/r.js",
   "scripts": {
     "test": "mocha"
   },
@@ -24,5 +24,8 @@
   "devDependencies": {
     "chai": "^4.3.4",
     "mocha": "^9.1.3"
+  },
+  "dependencies": {
+    "@types/node": "^17.0.23"
   }
 }
