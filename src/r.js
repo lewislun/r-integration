@@ -1,8 +1,8 @@
 'use strict'
 
-const fs = require("fs")
-const pt = require("path")
-const childProcess = require("child_process")
+const fs = require('fs')
+const pt = require('path')
+const childProcess = require('child_process')
 const REngineNotFoundError = require('./r-engine-not-found-error')
 const RScriptError = require('./r-script-error')
 
@@ -284,7 +284,7 @@ const callMethod = (fileLocation, methodName, params, RBinariesLocation) => {
  * @param {string} methodName the name of the method to execute
  * @param {String []} params a list of parameters to pass to the function
  * @param {string} RBinariesLocation optional parameter to specify an alternative location for the Rscript binary
- * @returns {string} the execution output of the function
+ * @returns {Promise<string>} the execution output of the function
  */
 const callMethodAsync = async (fileLocation, methodName, params, RBinariesLocation) => {
 	let output = 0
