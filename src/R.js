@@ -52,13 +52,30 @@ executeShellCommand = (command) => {
 };
 
 /**
+ * execute a command in the OS shell asynchronously (used to execute R command)
+ * 
+ * @param {string} command the command to execute
+ * @returns {{string, string}} the command execution result
+ */
+execShellCommandAsync = (command) => {
+	return new Promise(resolve => {
+		child_process.exec(command, (err, stdout, stderr) => {
+			resolve({
+				stderr: err || stderr,
+				stdout,
+			})
+		})
+	})
+}
+
+/**
  * checks if Rscript(R) is installed od the system and returns
  * the path where the binary is installed
  * 
  * @param {string} path alternative path to use as binaries directory
  * @returns {string} the path where the Rscript binary is installed, 0 otherwise
  */
-isRscriptInstallaed = (path) => {
+isRscriptInstalled = (path) => {
 	var installationDir = 0;
 
 	switch (getCurrentOs()) {
@@ -103,14 +120,14 @@ isRscriptInstallaed = (path) => {
 };
 
 /**
- * Execute in R a specific one line command
+ * Execute in R a specific one line command asynchronously
  * 
  * @param {string} command the single line R command
  * @param {string} RBinariesLocation optional parameter to specify an alternative location for the Rscript binary
  * @returns {String[]} an array containing all the results from the command execution output, 0 if there was an error
  */
 executeRCommand = (command, RBinariesLocation) => {
-	let RscriptBinaryPath = isRscriptInstallaed(RBinariesLocation);
+	let RscriptBinaryPath = isRscriptInstalled(RBinariesLocation);
 	let output = 0;
 
 	if (RscriptBinaryPath) {
@@ -132,23 +149,32 @@ executeRCommand = (command, RBinariesLocation) => {
 };
 
 /**
- * Execute in R a specific one line command - async
+ * Execute in R a specific one line command
  * 
  * @param {string} command the single line R command
  * @param {string} RBinariesLocation optional parameter to specify an alternative location for the Rscript binary
- * @returns {String[]} an array containing all the results from the command execution output, null if there was an error
+ * @returns {Promise<String[]>} an array containing all the results from the command execution output, 0 if there was an error
  */
-executeRCommandAsync = (command, RBinariesLocation) => {
-	return new Promise(function(resolve, reject) {
+executeRCommandAsync = async (command, RBinariesLocation) => {
+	let RscriptBinaryPath = isRscriptInstalled(RBinariesLocation)
+	let output = 0;
 
-		try {
-			var result = executeRCommand(command, RBinariesLocation);
-			resolve(result);
-		} catch (e) {
-			reject(e);
+	if (RscriptBinaryPath) {
+		var commandToExecute = `"${RscriptBinaryPath}" -e "${command}"`
+		var commandResult = await execShellCommandAsync(commandToExecute)
+
+		if (commandResult.stdout) {
+			output = commandResult.stdout;
+			output = filterMultiline(output)
+		} else {
+			throw Error(`[R: compile error] ${commandResult.stderr}`)
 		}
 
-	});
+	} else {
+		throw Error("R not found, maybe not installed.\nSee www.r-project.org")
+	}
+
+	return output
 };
 
 /**
@@ -164,7 +190,7 @@ executeRCommandAsync = (command, RBinariesLocation) => {
  */
 executeRScript = (fileLocation, RBinariesLocation) => {
 
-	let RscriptBinaryPath = isRscriptInstallaed(RBinariesLocation);
+	let RscriptBinaryPath = isRscriptInstalled(RBinariesLocation);
 	let output = 0;
 
 	if (!fs.existsSync(fileLocation)) {
@@ -270,17 +296,38 @@ callMethod = (fileLocation, methodName, params, RBinariesLocation) => {
  * @param {string} RBinariesLocation optional parameter to specify an alternative location for the Rscript binary
  * @returns {string} the execution output of the function
  */
-callMethodAsync = (fileLocation, methodName, params, RBinariesLocation) => {
-	return new Promise(function(resolve, reject) {
+callMethodAsync = async (fileLocation, methodName, params, RBinariesLocation) => {
+	let output = 0;
 
-		try {
-			var result = callMethod(fileLocation, methodName, params, RBinariesLocation);
-			resolve(result);
-		} catch (e) {
-			reject(e);
+	if (!methodName || !fileLocation || !params) {
+		throw Error("ERROR: please provide valid parameters - methodName, fileLocation and params cannot be null");
+	}
+
+	var methodSyntax = `${methodName}(`;
+
+	// check if params is an array of parameters or an object
+	if (Array.isArray(params)) {
+		methodSyntax += convertParamsArray(params);
+	} else {
+		for (const [key, value] of Object.entries(params)) {
+			if (Array.isArray(value)) {
+				methodSyntax += `${key}=${convertParamsArray(value)}`;
+			} else if (typeof value == "string") {
+				methodSyntax += `${key}='${value}',`; // string preserve quotes
+			} else if (value == undefined) {
+				methodSyntax += `${key}=NA,`;
+			} else {
+				methodSyntax += `${key}=${value},`;
+			}
 		}
+	}
 
-	})
+	var methodSyntax = methodSyntax.slice(0, -1);
+	methodSyntax += ")";
+
+	output = executeRCommandAsync(`source('${fileLocation}') ; print(${methodSyntax})`, RBinariesLocation);
+
+	return output;
 };
 
 
