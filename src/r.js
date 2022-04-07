@@ -3,8 +3,7 @@
 const fs = require('fs')
 const pt = require('path')
 const childProcess = require('child_process')
-const REngineNotFoundError = require('./r-engine-not-found-error')
-const RScriptError = require('./r-script-error')
+const { REngineNotFoundError, RScriptError } = require('./errors')
 
 /**
  * get the current Operating System name

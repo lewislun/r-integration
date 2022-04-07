@@ -1,7 +1,9 @@
 'use strict'
 
+const BaseRIntegrationError = require('./base-r-integration-error')
+
 /** @class */
-class REngineNotFoundError extends Error {
+class REngineNotFoundError extends BaseRIntegrationError {
 	/**
 	 * @param {string} path
 	 */
