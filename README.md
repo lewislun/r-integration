@@ -2,6 +2,11 @@
 
 This is the R-integration API which allows you to execute arbitrary R commands or scripts directly from the node JS environment. This integration works on Windows and GNU/Linux based systems and uses system calls to access the R binary.
 
+## Purpose of this fork
+- implement real async such that the main process does not stop until the child process is finished
+- better error
+- escape strings to prevent error when passing backslash as function parameters
+
 ## Installation
 
 ### Node JS
